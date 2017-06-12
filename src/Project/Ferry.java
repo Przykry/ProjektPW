@@ -67,6 +67,7 @@ public class Ferry implements Runnable {
         this.transport = false;
         this.road = road;
         this.exitRoad = exitRoad;
+        ferryClockThread.setName("FerryClock");
         ferryClockThread.start();
     }
 

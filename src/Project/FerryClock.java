@@ -21,6 +21,11 @@ public class FerryClock implements Runnable{ {
                 e.printStackTrace();
             }
                 ferry.setItsTime(true);
+            try {
+                sleep(40);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

@@ -17,7 +17,7 @@ import java.util.List;
  */
 public class Port extends JPanel implements ActionListener {
     int width,heigth;
-    int carNumber;
+    static int carNumber;
     static int ferriesNumber;
     Image backgroundImage;
     List<Ferry> ferries = new ArrayList<>();
@@ -28,6 +28,9 @@ public class Port extends JPanel implements ActionListener {
     static Road road;
     static ExitRoad exitRoad;
     static int carIterator = 0;
+    static int distanceBetweenFerries = 100;
+
+    public static int getDistanceBetweenFerries() {return distanceBetweenFerries;}
 
     public static int getFerriesNumber() {
         return ferriesNumber;
@@ -36,8 +39,8 @@ public class Port extends JPanel implements ActionListener {
     public Port(int width, int height){
         this.width = width;
         this.heigth = height;
-        this.carNumber = 120;
-        this.ferriesNumber = 4;
+        this.carNumber = 300;
+        this.ferriesNumber = 3;
         road = new Road(ferries,cars);
         exitRoad = new ExitRoad(ferries);
         try {
@@ -50,14 +53,16 @@ public class Port extends JPanel implements ActionListener {
             cars.add(new Car(-Car.getRadius(), 530,road,exitRoad));
         }
         for(int i=1;i<=ferriesNumber;i++){
-            ferries.add(new Ferry(440 - i *10 , 100 * i,road,exitRoad));
+            ferries.add(new Ferry(440 - i *10 , distanceBetweenFerries * i,road,exitRoad));
         }
         road = new Road(ferries,cars);
         for(int i=0;i<ferriesNumber;i++) {
             ferriesThread[i] = new Thread(ferries.get(i));
+            ferriesThread[i].setName("prom" + i);
             ferriesThread[i].start();
         }
         Thread t = new Thread(new CarClock());
+        t.setName("carClock");
         t.start();
         this.setFocusable(true);
         this.setLayout(null);
@@ -71,6 +76,7 @@ public class Port extends JPanel implements ActionListener {
 
     static void carArrive(){
         Thread t = new Thread(cars.get(carIterator++));
+        t.setName("car" + carIterator);
         t.start();
     }
 
@@ -87,5 +93,9 @@ public class Port extends JPanel implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         repaint();
+    }
+
+    public static int getCarNumber() {
+        return carNumber;
     }
 }

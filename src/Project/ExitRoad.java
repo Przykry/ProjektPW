@@ -13,21 +13,26 @@ import static java.lang.Thread.sleep;
 public class ExitRoad {
     private static List<Ferry> ferries;
     private static List<Car> cars = new ArrayList<>();
-    private static final Semaphore carEnters = new Semaphore(1, true);
+    private static final Semaphore carEnters[] = new Semaphore[Port.getFerriesNumber()];
     private static final Semaphore letCarGo[] = new Semaphore[Port.getFerriesNumber()];
     private static final Semaphore ferryPalceCheack = new Semaphore(1, true);
+    private static final Semaphore carDrive = new Semaphore(1, true);
     int i=0;
-    private int carInIntersection = 0;
+    private int carInIntersection[] = new int[Port.getFerriesNumber()];
 
     ExitRoad(List<Ferry> ferries) {
         ExitRoad.ferries = ferries;
         for(int i=0;i<Port.getFerriesNumber();i++){
-            letCarGo[i] = new Semaphore(1,true);
+            letCarGo[i] = new Semaphore(4,true);
+            carEnters[i] = new Semaphore(1,true);
+            carInIntersection[i] = 0;
         }
     }
 
     void carOnRoad(Ferry ferry) {
-            if (ferry.isShore()) {
+        try {
+            ferryPalceCheack.acquire();
+        if (ferry.isShore()) {
                 if (ferry.numberCarsInFerry() >= 1) {
                     if (ferry.firstCar().getX() >= 610) {
                         Car car = ferry.carLeaveFerry();
@@ -39,6 +44,10 @@ public class ExitRoad {
                     ferry.backOff();
                 }
             }
+        ferryPalceCheack.release();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     boolean ferryIsOnShore(Ferry cFerry){
@@ -56,12 +65,12 @@ public class ExitRoad {
     }
 
 
-    int carCloserFerry(Car car, Ferry ferry){
+    int carCloserFerry(Car car){
         int ferryNumber = 0;
         try {
             ferryPalceCheack.acquire();
-            ferryNumber = (car.getY())/125;
-            if(ferries.size() * 100 + 50 < car.getY()) ferryNumber = -1;
+            ferryNumber = (car.getY())/140;
+            if(ferries.size() * 100 + 60 < car.getY()) ferryNumber = -1;
             ferryPalceCheack.release();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -70,41 +79,56 @@ public class ExitRoad {
         }
     }
 
-    void letCarFirst(Car car, Ferry cFerry) {
-            int currentFerry = carCloserFerry(car, cFerry);
+    void letCarFirst(int currentFerry) {
             try {
-                carEnters.acquire();
-                letCarGo[currentFerry].tryAcquire();
-                carInIntersection++;
-                carEnters.release();
+                carEnters[currentFerry].acquire();
+                for(int i = currentFerry; i < Port.getFerriesNumber(); i++) {
+                    letCarGo[i].tryAcquire(4);
+                    carInIntersection[i]++;
+                    //System.out.println(carInIntersection[i]  + "  " + i );
+                }
+                carEnters[currentFerry].release();
             } catch (InterruptedException e) {}
     }
 
-    void carOutOfIntersection(Car car, Ferry cFerry){
-            int currentFerry = carCloserFerry(car, cFerry);
+    void carOutOfIntersection(int currentFerry){
+
             try {
-                carEnters.acquire();
-                carInIntersection--;
-                System.out.println(carInIntersection);
-                if (carInIntersection == 0) letCarGo[currentFerry].release();
-                carEnters.release();
+                carEnters[currentFerry].acquire();
+                carInIntersection[currentFerry]--;
+               // System.out.println(carInIntersection[currentFerry]);
+                if (carInIntersection[currentFerry] == 0) letCarGo[currentFerry].release(4);
+                carEnters[currentFerry].release();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
     }
 
-    void carOnRoad(Car car,Ferry cFerry){
-        letCarGo[ferries.indexOf(cFerry)].release();
+    void carOnRoad(int currentFerry){
+        letCarGo[currentFerry].release();
     }
 
 
-    void  tryEscapeFerry(Car car,Ferry cFerry){
+    void  tryEscape(int currentFerry){
         try{
-            letCarGo[ferries.indexOf(cFerry)].acquire();
+            letCarGo[currentFerry].acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
+
+    void carDive(){
+        try {
+            carDrive.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void carWait(){
+        carDrive.release();
+    }
+
 
 //            if (ferries.size() * 100 + 40 > car.getY()) {
 //                int currentFerry = carCloserFerry(car, cFerry);

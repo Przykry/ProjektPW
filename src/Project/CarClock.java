@@ -13,9 +13,9 @@ public class CarClock implements Runnable {
 
     @Override
     public void run() {
-        for(int i = 0; i < 120 ; i++) {
+        for(int i = 0; i < Port.getCarNumber() ; i++) {
             try {
-                sleep(rand.nextInt(830) + 300);
+                sleep(rand.nextInt(530) + 100);
                 Port.carArrive();
             } catch (InterruptedException e) {
                 e.printStackTrace();

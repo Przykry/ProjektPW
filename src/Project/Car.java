@@ -30,68 +30,13 @@ public class Car implements Runnable {
     private int currentFerry = -1;
     private int availableFerry[] = new int[Port.getFerriesNumber()];
     private int ferryIterator;
-    private boolean carOnRoad = false;
-
-
-    public int getAvailableFerry(int i) {
-        return availableFerry[i];
-    }
-
-    public void setAvailableFerry(int i) {
-        this.availableFerry[i] = 1;
-    }
-
-    public int getCurrentFerry() {
-        return currentFerry;
-    }
-
-    public void setCurrentFerry(int currentFerry) {
-        this.currentFerry = currentFerry;
-    }
-
-    public boolean isGoToFerry() {
-        return goToFerry;
-    }
-
-    public void setGoToFerry(boolean goToFerry) {
-        this.goToFerry = goToFerry;
-    }
-
-    public void setDrive(boolean drive) {
-        this.drive = drive;
-    }
-
-    public int getQueue() {
-        return queue;
-    }
+    private boolean carOnRoad = true;
 
     public void move(int direction){
         if(direction == 1) x+=2;
         else if(direction == -1) x-=2;
         else if(direction == 2) y+=2;
         else if(direction == -2) y-=2;
-    }
-
-    public void setQueue(int queue) {
-        this.queue = queue;
-    }
-
-    public int decQueue() {
-        return queue--;
-    }
-
-    public int getX() {return x;}
-
-    public void setFirstCar(boolean firstCar) {
-        this.firstCar = firstCar;
-    }
-
-    public int getY() {
-        return y;
-    }
-
-    public void stayOnFerry(){
-        x+=5;
     }
 
     Car(int x, int y,Road road,ExitRoad exitRoad){
@@ -113,9 +58,10 @@ public class Car implements Runnable {
     }
 
     void goAway(){
-
         if(x < 590 + radius || this.y >= 530) move(1);
-        else if(this.y < 530) move(2);
+        else if(this.y < 530) {
+            move(2);
+        }
     }
 
     void setClosestFerry(){closestFerry = road.getCloserFerry();}
@@ -131,6 +77,40 @@ public class Car implements Runnable {
     }
 
 
+    void firstStep(){
+        if (itsQueue()) {
+            thisIsPort();
+            move(1);
+            road.carInPort(this);
+            road.firstToFerry(this);
+        } else if (firstCar && y > 500 && !canGoAway) {
+            move(-2);
+        } else if (firstCar && y <= 500 && closestFerry == null) {
+            setClosestFerry();
+            road.goToFirstFreeFerry(this, closestFerry);
+            firstStep = false;
+        }
+    }
+
+    void secondStep() throws InterruptedException{
+        if (goToFerry) {
+            if (this.getY() <= closestFerry.getY()) {
+                goToFerry = false;
+                this.isParkInFerry(true);
+            } else move(-2);
+        } else if (parkInFerry) {
+            if (x >= closestFerry.freeParkingPlace()) {
+                closestFerry.carInFerry(this);
+                this.setCarOnFerry(true);
+                parkInFerry = false;
+                canGoAway = true;
+                carStillOnFerry = true;
+                closestFerry.decQueue();
+                while (!exitRoad.ferryIsOnShore(closestFerry)) sleep(30);
+            } else move(1);
+        }
+    }
+
     @Override
     public void run() {
         road.carEnterPort(this);
@@ -138,65 +118,38 @@ public class Car implements Runnable {
             try {
                 sleep(10);
                 if(firstStep) {
-                    if (itsQueue()) {
-                        thisIsPort();
-                        move(1);
-                        road.carInPort(this);
-                        road.firstToFerry(this);
-                    } else if (firstCar && y > 500 && !canGoAway) {
-                        move(-2);
-                    } else if (firstCar && y <= 500 && closestFerry == null) {
-                        setClosestFerry();
-                        road.goToFirstFreeFerry(this, closestFerry);
-                        firstStep = false;
-                    }
+                    firstStep();
                 }
-                else {
-                    if (goToFerry) {
-                        if (this.getY() <= closestFerry.getY()) {
-                            goToFerry = false;
-                            this.isParkInFerry(true);
-                        } else move(-2);
-                    } else if (parkInFerry) {
-                        if (x >= closestFerry.freeParkingPlace()) {
-                            closestFerry.carInFerry(this);
-                            this.setCarOnFerry(true);
-                            parkInFerry = false;
-                            canGoAway = true;
-                            carStillOnFerry = true;
-                            closestFerry.decQueue();
-                            drive = true;
-                            while (!exitRoad.ferryIsOnShore(closestFerry)) sleep(30);
-                        } else move(1);
-                    } else if (canGoAway) {
-                        int currentFerry = exitRoad.carCloserFerry(this,closestFerry);
-                        if (drive) {
-                            drive = false;
-                            exitRoad.tryEscapeFerry(this,closestFerry);
+                else if(!canGoAway) {
+                    secondStep();
+                }
+                else if (canGoAway) {
+                    int currentFerry = exitRoad.carCloserFerry(this);
+                    if(carStillOnFerry) {
+                        exitRoad.tryEscape(currentFerry);
+                        exitRoad.carOnRoad(currentFerry);
+                        carStillOnFerry = false;
+                    }
+                    else {
+                        if(currentFerry > -1 && !wasPassedFerry) {
                             ferryIterator = currentFerry;
-                        }
-                        if( currentFerry >=0 && ferryIterator < currentFerry) {
-                            ferryIterator = currentFerry;
-                            exitRoad.letCarFirst(this,closestFerry);
+                            exitRoad.letCarFirst(currentFerry);
                             wasPassedFerry = true;
                         }
-                        else if(ferryIterator == currentFerry && y > (ferryIterator + 1) * 100 + 20 && !carOnRoad){
-                            exitRoad.carOnRoad(this,closestFerry);
-                            carOnRoad = false;
+                        else if(currentFerry * 100 + 35  < y && currentFerry > -1 && availableFerry[currentFerry] == 0 ){
+                            exitRoad.carOutOfIntersection(currentFerry);
+                            availableFerry[currentFerry] = 1;
                         }
-                        if(currentFerry >=0 && y > (ferryIterator + 1) * 100 + 20 && wasPassedFerry){
-                            exitRoad.carOutOfIntersection(this,closestFerry);
-                            wasPassedFerry = false;
-                        }
-
                         goAway();
-                        if (x > 810) break;
+                    }
+                    if (x > 810) {
+                        break;
                     }
                 }
+
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
         }
     }
 
@@ -238,5 +191,59 @@ public class Car implements Runnable {
 
     public boolean isCarOnFerry() {
         return carOnFerry;
+    }
+
+    public void setQueue(int queue) {
+        this.queue = queue;
+    }
+
+    public int decQueue() {
+        return queue--;
+    }
+
+    public int getX() {return x;}
+
+    public void setFirstCar(boolean firstCar) {
+        this.firstCar = firstCar;
+    }
+
+    public int getY() {
+        return y;
+    }
+
+    public void stayOnFerry(){
+        x+=5;
+    }
+
+    public int getAvailableFerry(int i) {
+        return availableFerry[i];
+    }
+
+    public void setAvailableFerry(int i) {
+        this.availableFerry[i] = 1;
+    }
+
+    public int getCurrentFerry() {
+        return currentFerry;
+    }
+
+    public void setCurrentFerry(int currentFerry) {
+        this.currentFerry = currentFerry;
+    }
+
+    public boolean isGoToFerry() {
+        return goToFerry;
+    }
+
+    public void setGoToFerry(boolean goToFerry) {
+        this.goToFerry = goToFerry;
+    }
+
+    public void setDrive(boolean drive) {
+        this.drive = drive;
+    }
+
+    public int getQueue() {
+        return queue;
     }
 }
